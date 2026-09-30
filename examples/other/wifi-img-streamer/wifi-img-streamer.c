@@ -318,10 +318,14 @@ void camera_task(void *parameters)
 
         transferTime = xTaskGetTickCount() - start;
       }
-// #ifdef OUTPUT_PROFILING_DATA
-      cpxPrintToConsole(LOG_TO_CRTP, "capture=%dms, encoding=%d ms (%d bytes), transfer=%d ms\n",
-                        captureTime, encodingTime, imgSize, transferTime);
-// #endif
+      // Lorite (Lorite/lorite_ros2_humble_phd#105): one profiling line per 100 frames, not one
+      // per frame. At about 11 fps the per-frame line was the only traffic left on the
+      // Crazyflie console, about 760 B/s on the radio downlink that flight commands share.
+      static uint32_t profiledFrames = 0;
+      if (profiledFrames++ % 100 == 0) {
+        cpxPrintToConsole(LOG_TO_CRTP, "capture=%dms, encoding=%d ms (%d bytes), transfer=%d ms (1 line per 100 frames)\n",
+                          captureTime, encodingTime, imgSize, transferTime);
+      }
     }
     else
     {
