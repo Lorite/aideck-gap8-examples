@@ -5,6 +5,14 @@ ifeq ($(SETUP_WIFI_AP), 1)
 APP_CFLAGS += -DSETUP_WIFI_AP
 endif
 
+ifeq ($(STREAM_JPEG), 1)
+APP_CFLAGS += -DSTREAM_JPEG
+endif
+
+ifeq ($(JPEG_CLUSTER), 1)
+APP_CFLAGS += -DJPEG_CLUSTER
+endif
+
 APP = wifi-img-streamer
 APP_SRCS += wifi-img-streamer.c ../../../lib/cpx/src/com.c ../../../lib/cpx/src/cpx.c
 APP_CFLAGS += -O3 -g

@@ -143,7 +143,15 @@ uint32_t footerSize;
 pi_buffer_t jpeg_data;
 uint32_t jpegSize;
 
+// Lorite (Lorite/lorite_ros2_humble_phd#110): choose the format at build time with STREAM_JPEG=1.
+// The GAP8 JPEG encoder has a fixed quantization table (twice the standard luminance table,
+// about IJG quality 25) and runs on the fabric controller. The image header goes out after the
+// encoding, so the capture-to-first-datagram delay grows by the encoding time.
+#ifdef STREAM_JPEG
+static StreamerMode_t streamerMode = JPEG_ENCODING;
+#else
 static StreamerMode_t streamerMode = RAW_ENCODING;
+#endif
 
 static CPXPacket_t txp;
 
@@ -225,13 +233,32 @@ void camera_task(void *parameters)
   jpeg_encoder_conf_init(&enc_conf);
   enc_conf.width = CAM_WIDTH;
   enc_conf.height = CAM_HEIGHT;
+#ifdef JPEG_CLUSTER
+  // Lorite (#110): encode on the 8 cluster cores. On the fabric controller alone the encoding
+  // took 58 ms per frame and limited the JPEG stream to about 8 fps (2026-10-01).
+  // EXPERIMENTAL, do not use yet: on 2026-10-01 the first frame encoded in 15 ms, and then the
+  // streamer stopped sending (no further frames or profiling lines). Cause not found.
+  enc_conf.flags = JPEG_ENCODER_FLAGS_CLUSTER_OFFLOAD;
+#else
   enc_conf.flags = 0; // Move this to the cluster
+#endif
 
   if (jpeg_encoder_open(&jpeg_encoder, &enc_conf))
   {
     cpxPrintToConsole(LOG_TO_CRTP, "Failed initialize JPEG encoder\n");
     return;
   }
+#ifdef JPEG_CLUSTER
+  if (jpeg_encoder_start(&jpeg_encoder))
+  {
+    cpxPrintToConsole(LOG_TO_CRTP, "JPEG cluster start failed, encoding on the fabric controller\n");
+    jpeg_encoder.flags = 0;
+  }
+  else
+  {
+    cpxPrintToConsole(LOG_TO_CRTP, "JPEG encoding on the cluster\n");
+  }
+#endif
 
   pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, imgBuff);
   pi_buffer_set_format(&buffer, CAM_WIDTH, CAM_HEIGHT, 1, PI_BUFFER_FORMAT_GRAY);
